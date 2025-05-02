@@ -1,7 +1,6 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse, NextRequest } from "next/server";
 
-// Only import Arcjet dynamically (lazy) to avoid running it in dev.
 const isProd = process.env.NODE_ENV === "production";
 
 const isProtectedRoute = createRouteMatcher([
@@ -10,14 +9,15 @@ const isProtectedRoute = createRouteMatcher([
   "/projects",
 ]);
 
+// Clerk + Arcjet Middleware combo
 const customMiddleware = clerkMiddleware(async (authPromise, req: NextRequest) => {
-  // Clerk protection
   const auth = await authPromise;
+
   if (isProtectedRoute(req)) {
     await auth.protect();
   }
 
-  // Arcjet protection (only in production)
+  // Arcjet only in production
   if (isProd) {
     try {
       const arcjet = (await import("@arcjet/next")).default;
@@ -25,6 +25,7 @@ const customMiddleware = clerkMiddleware(async (authPromise, req: NextRequest) =
 
       const aj = arcjet({
         key: process.env.ARCJET_KEY!,
+        allowWhenUnavailable: true, // ✅ Fallback for dev or network errors
         characteristics: ["ip.src"],
         rules: [
           shield({ mode: "LIVE" }),
@@ -45,13 +46,12 @@ const customMiddleware = clerkMiddleware(async (authPromise, req: NextRequest) =
         );
       }
     } catch (error) {
-      console.warn("Arcjet error:", error);
-      // fail-safe: let request continue
+      console.warn("Arcjet failed, allowing request. Reason:", error);
     }
   }
 });
 
-export const middleware = customMiddleware;
+export const middleware = isProd ? customMiddleware : () => NextResponse.next(); // ✅ Skip in dev
 
 export const config = {
   matcher: [
