@@ -64,5 +64,5 @@ export async function GET(req: Request) {
     );
   }
 
-  return NextResponse.json({ message: "Hello world" });
+  return NextResponse.json({ message: "Bot not detected" });
 }
